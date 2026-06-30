@@ -1,0 +1,8 @@
+# Foundry Local — platforma göre DOĞRU paket otomatik seçilir.
+# Import adı her iki tarafta da aynı: foundry_local_sdk
+foundry-local-sdk-winml ; sys_platform == "win32"     # Windows (HP) -> WinML, NPU/GPU hızlandırma
+foundry-local-sdk        ; sys_platform != "win32"     # macOS (Mac)  -> Apple Silicon GPU (Metal)
+
+streamlit                 # UI (Şeyma)
+pyyaml                    # eval soru seti (Ortak)
+# sqlite3 -> Python standart kütüphanesi, ayrı kurulum gerekmez

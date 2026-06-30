@@ -1,0 +1,20 @@
+# Test soru seti.  type: answerable | unanswerable
+# expect_contains: cevapta geçmesi beklenen anahtar kelime (yalnızca answerable için, opsiyonel)
+
+- question: "Foundry Local Intel Mac'lerde çalışır mı?"
+  type: answerable
+  expect_contains: "Intel"
+
+- question: "RAG'in üç adımı nedir?"
+  type: answerable
+  expect_contains: "Getirme"
+
+- question: "SQLite veriyi nerede saklar?"
+  type: answerable
+  expect_contains: "dosya"
+
+- question: "Bu projenin bütçesi ne kadar?"
+  type: unanswerable
+
+- question: "İstanbul'da bugün hava nasıl?"
+  type: unanswerable
