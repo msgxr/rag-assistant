@@ -1,20 +1,94 @@
-# Test soru seti.  type: answerable | unanswerable
-# expect_contains: cevapta geçmesi beklenen anahtar kelime (yalnızca answerable için, opsiyonel)
+# Test soru seti.
+# type: answerable | unanswerable
+# expect_contains: cevapta geçmesi beklenen anahtar kelime (küçük harf, dil bağımsız)
 
+# ── Foundry Local ──────────────────────────────────────────────────────────────
 - question: "Foundry Local Intel Mac'lerde çalışır mı?"
   type: answerable
-  expect_contains: "Intel"
+  expect_contains: "intel"
 
+- question: "Foundry Local hangi donanım hızlandırma yöntemlerini kullanır?"
+  type: answerable
+  expect_contains: "gpu"
+
+- question: "Foundry Local'de model nasıl indirilir?"
+  type: answerable
+  expect_contains: "download"
+
+- question: "qwen2.5-0.5b modeli ne zaman tercih edilmeli?"
+  type: answerable
+  expect_contains: "small"
+
+# ── RAG ───────────────────────────────────────────────────────────────────────
 - question: "RAG'in üç adımı nedir?"
   type: answerable
-  expect_contains: "Getirme"
+  expect_contains: "getirme"
 
+- question: "Halüsinasyon nedir?"
+  type: answerable
+  expect_contains: "hallüsinasyon"
+
+- question: "RAG ne zaman kullanılır?"
+  type: answerable
+  expect_contains: "rag"
+
+# ── Embeddings ────────────────────────────────────────────────────────────────
+- question: "Cosine similarity nedir?"
+  type: answerable
+  expect_contains: "vektör"
+
+- question: "Bu projede kaç chunk döndürülür?"
+  type: answerable
+  expect_contains: "3"
+
+- question: "Embedding modeli ile chat modeli arasındaki fark nedir?"
+  type: answerable
+  expect_contains: "embedding"
+
+# ── SQLite ────────────────────────────────────────────────────────────────────
 - question: "SQLite veriyi nerede saklar?"
   type: answerable
-  expect_contains: "dosya"
+  expect_contains: "file"
 
+- question: "documents tablosunun sütunları nelerdir?"
+  type: answerable
+  expect_contains: "source"
+
+- question: "rag.db nasıl yeniden oluşturulur?"
+  type: answerable
+  expect_contains: "ingest"
+
+# ── Prompt Engineering ────────────────────────────────────────────────────────
+- question: "RAG promptlarında system prompt ne işe yarar?"
+  type: answerable
+  expect_contains: "context"
+
+- question: "Model cevap bulamazsa ne demelidir?"
+  type: answerable
+  expect_contains: "information"
+
+# ── Pipeline ──────────────────────────────────────────────────────────────────
+- question: "ingest.py ne yapar?"
+  type: answerable
+  expect_contains: "chunk"
+
+- question: "Ingestion sırasında chunk boyutu kaç karakterdir?"
+  type: answerable
+  expect_contains: "800"
+
+- question: "Minimum benzerlik skoru nedir?"
+  type: answerable
+  expect_contains: "0.45"
+
+# ── Cevapsız sorular ──────────────────────────────────────────────────────────
 - question: "Bu projenin bütçesi ne kadar?"
   type: unanswerable
 
 - question: "İstanbul'da bugün hava nasıl?"
+  type: unanswerable
+
+- question: "2026 dünya kupasını kim kazandı?"
+  type: unanswerable
+
+- question: "Foundry Local'in hisse fiyatı nedir?"
   type: unanswerable

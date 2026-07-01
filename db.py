@@ -1,5 +1,5 @@
 """
-db.py  —  SQLite şema + giriş/çıkış  (Sahip: SİNA)
+db.py  —  SQLite şema + giriş/çıkış
 Embedding'ler JSON metni olarak saklanır (küçük veri için yeterli).
 """
 from __future__ import annotations
@@ -45,6 +45,14 @@ def insert_chunk(conn: sqlite3.Connection, source: str, content: str,
 
 def count_documents(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+
+
+def count_by_source(conn: sqlite3.Connection) -> dict[str, int]:
+    """Kaynak dosya başına chunk sayısını döndürür."""
+    rows = conn.execute(
+        "SELECT source, COUNT(*) as cnt FROM documents GROUP BY source ORDER BY source"
+    ).fetchall()
+    return {r["source"]: r["cnt"] for r in rows}
 
 
 def fetch_all_chunks(conn: sqlite3.Connection) -> list[dict]:

@@ -1,9 +1,11 @@
 """
-ingest.py  —  Dökümanları parçala, embed et, SQLite'a yaz  (Sahip: SİNA)
+ingest.py  —  Dökümanları parçala, embed et, SQLite'a yaz
 Çalıştır:  python ingest.py
 data/ içindeki .txt ve .md dosyalarını okur.
 """
 from __future__ import annotations
+
+import sys
 from pathlib import Path
 
 import db
@@ -11,7 +13,7 @@ import foundry_client as fc
 
 DATA_DIR = Path(__file__).parent / "data"
 MAX_CHARS = 800     # bir parçanın hedef üst karakter sınırı
-OVERLAP = 100       # uzun paragraf bölünürken örtüşme (bağlam kopmasın)
+OVERLAP   = 100     # uzun paragraf bölünürken örtüşme (bağlam kopmasın)
 
 
 def load_documents(data_dir: Path = DATA_DIR) -> list[tuple[str, str]]:
@@ -22,7 +24,8 @@ def load_documents(data_dir: Path = DATA_DIR) -> list[tuple[str, str]]:
     return docs
 
 
-def chunk_text(text: str, max_chars: int = MAX_CHARS, overlap: int = OVERLAP) -> list[str]:
+def chunk_text(text: str, max_chars: int = MAX_CHARS,
+               overlap: int = OVERLAP) -> list[str]:
     """Önce paragraflara böl; çok uzun paragrafları örtüşmeli pencerelerle parçala."""
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: list[str] = []
@@ -36,34 +39,46 @@ def chunk_text(text: str, max_chars: int = MAX_CHARS, overlap: int = OVERLAP) ->
                 piece = para[start:end].strip()
                 if piece:
                     chunks.append(piece)
+                if end >= len(para):
+                    break
                 start = end - overlap
     return chunks
 
 
 def ingest() -> None:
+    documents = load_documents()
+    if not documents:
+        print(f"[!] {DATA_DIR} içinde .txt/.md yok. Önce döküman ekle.")
+        return
+
     conn = db.get_connection()
     db.init_db(conn)
     db.clear_documents(conn)   # her çalıştırmada temiz kurulum
 
-    documents = load_documents()
-    if not documents:
-        print(f"[!] {DATA_DIR} içinde .txt/.md yok. Önce döküman ekle.")
-        conn.close()
-        return
+    total_chunks = sum(len(chunk_text(text)) for _, text in documents)
+    print(f"[→] {len(documents)} döküman, tahmini {total_chunks} parça")
+    print("[→] Embedding modeli ilk kullanımda indirilir (birkaç dakika sürebilir)...\n")
 
-    total = 0
+    done = 0
     for source, text in documents:
         chunks = chunk_text(text)
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks, 1):
             embedding = fc.get_embedding(chunk)
             db.insert_chunk(conn, source, chunk, embedding)
-            total += 1
-        print(f"  [+] {source}: {len(chunks)} parça")
-    conn.commit()
+            done += 1
+            # Basit ilerleme çubuğu
+            pct = int(done / total_chunks * 40)
+            bar = "█" * pct + "░" * (40 - pct)
+            sys.stdout.write(f"\r  [{bar}] {done}/{total_chunks}  {source[:30]}")
+            sys.stdout.flush()
+        conn.commit()   # her döküman sonrası kaydet
+        print(f"\r  [+] {source:<40} {len(chunks)} parça")
 
-    print(f"\n[OK] Ingestion bitti — {len(documents)} döküman, {total} parça.")
-    print(f"[OK] DB kayıt sayısı: {db.count_documents(conn)}")
+    final_count = db.count_documents(conn)
     conn.close()
+
+    print(f"\n[OK] Ingestion tamamlandı.")
+    print(f"[OK] {len(documents)} döküman → {final_count} parça → rag.db")
 
 
 if __name__ == "__main__":

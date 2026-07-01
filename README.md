@@ -1,136 +1,191 @@
-# Yerel RAG Asistanı (Foundry Local + RAG)
+# Local RAG Assistant — Python + Streamlit + SQLite + Foundry Local
 
-İnternetsiz çalışan döküman Q&A asistanı. Kullanıcının sorusuna, yerel döküman
-havuzundan ilgili parçaları bulup (RAG) on-device LLM ile kaynağa dayalı cevap üretir.
-Tüm çalışma çevrimdışı; sıfır network çağrısı (modeller ilk kez indirildikten sonra).
+Fully offline document Q&A assistant. Retrieves relevant chunks from local documents,
+injects them into the prompt, and asks an on-device Foundry Local model to generate
+a source-grounded answer. No cloud, no API keys, no internet required after the
+initial model download.
 
-**Ekip:** Muhammed Sina (HP/Windows) + Şeyma (Mac/Apple Silicon)
-
----
-
-## 0. Ön koşul (önce bunu doğrula)
-
-Foundry Local **yalnızca Apple Silicon** Mac'i destekler (M1/M2/M3/M4). Şeyma'nın
-Mac'i Intel ise bu proje o makinede çalışmaz — Linux/Windows alternatifi gerekir.
-
-Gereken: Python 3.10+ ve ilk model indirmesi için (bir kerelik) internet.
+> **Reference project:** [Building Your First Local RAG Application with Foundry Local](https://techcommunity.microsoft.com/blog/azuredevcommunityblog/building-your-first-local-rag-application-with-foundry-local/4501968)
+> **Teaching plan:** [`docs/one_month_plan.md`](docs/one_month_plan.md)
 
 ---
 
-## 1. Kurulum
+## Architecture
+
+```
+[User / UI]       ui_streamlit.py  ·  main.py (CLI)
+      ↓
+[Application]     generation.answer_query()
+      ↓               ↳ prompts.build_user_message()
+[RAG Retrieval]   retrieval.get_top_chunks()  ←  ingest.py (one-time)
+      ↓                                              ↳ chunk_text()
+[Data Layer]      rag.db (SQLite)  ←  db.py
+      ↓
+[AI Layer]        foundry_client.chat() / get_embedding()
+                      ↳ Foundry Local Runtime — 100% on-device, offline
+```
+
+**Ingest flow:** `data/*.md` → `ingest.py` → `chunk_text()` → embedding → `rag.db`
+
+**Query flow:** question → `answer_query()` → `get_top_chunks()` → `rag.db` → prompt → `fc.chat()` → answer
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
+|-------------|-------|
+| Python 3.10+ | 3.11 recommended |
+| Windows or Apple Silicon Mac | Intel Mac not supported by Foundry Local |
+| ~4 GB free disk | For model download (first run only) |
+| Internet (first run only) | Model cached after first download |
+
+---
+
+## Setup
 
 ```bash
-# 1) sanal ortam
+# 1. Create and activate virtual environment
 python -m venv .venv
-# Windows:
+
+# Windows
 .venv\Scripts\activate
-# macOS:
+
+# macOS / Linux
 source .venv/bin/activate
 
-# 2) bağımlılıklar (requirements.txt platforma göre doğru Foundry paketini seçer)
+# 2. Install dependencies
 pip install -r requirements.txt
+
+# 3. Verify installation
+python check_setup.py
+
+# 4. (Optional) List all available model aliases
+python check_setup.py --models
 ```
 
-### Model alias'larını doğrula  (ÖNEMLİ)
-Makinende hangi modellerin mevcut olduğunu gör:
-```bash
-foundry model list
-```
-Sonra `foundry_client.py` içindeki iki sabiti kendi makinendekiyle eşle:
+If `check_setup.py` reports that a model alias is missing, edit `foundry_client.py`:
+
 ```python
-CHAT_MODEL_ALIAS      = "qwen2.5-0.5b"          # hızlı; kalite için "phi-3.5-mini"
-EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"  # listedeki embedding modelinin alias'ı
+CHAT_MODEL_ALIAS      = "qwen2.5-0.5b"       # or: phi-3.5-mini, phi-4-mini
+EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
 ```
 
 ---
 
-## 2. Çalıştırma
+## Quick Start
 
 ```bash
-# 1) veritabanını kur (data/ içindeki dökümanları parçalar + embed eder)
+# Step 1 — Build the knowledge base (run whenever data/ changes)
 python ingest.py
 
-# 2a) CLI ile sor-cevap
+# Step 2a — CLI interface
 python main.py
 
-# 2b) veya web arayüzü
+# Step 2b — Streamlit web UI
 streamlit run ui_streamlit.py
 ```
 
-İlk soruda modeller belleğe yüklenir (biraz sürebilir); sonrası hızlıdır.
-
-### Kendi dökümanlarını ekle
-`data/` klasörüne `.txt` veya `.md` dosyalarını at, `python ingest.py` komutunu
-tekrar çalıştır. (Ingestion her seferinde DB'yi temizleyip yeniden kurar.)
+Add your own `.txt` or `.md` files to `data/`, then rerun `python ingest.py`.
+Ingestion clears and rebuilds the `documents` table each time.
 
 ---
 
-## 3. Test / Değerlendirme
+## Evaluation
 
 ```bash
-python eval/run_eval.py
+python eval/run_eval.py              # run all 23 test questions
+python eval/run_eval.py --verbose    # show full answers
+python eval/run_eval.py --fail-only  # show only failures
 ```
-`eval/questions.yaml` içindeki soruları koşar; cevaplanabilir sorularda doğru bilgi,
-cevaplanamaz sorularda "bilmiyorum" davranışını kontrol eder. **İki makinede de**
-koşturup karşılaştırın — Mac ve Windows farklı model varyantı indirdiği için cevaplar
-birebir aynı çıkmayabilir.
+
+The evaluation set (`eval/questions.yaml`) checks:
+- **Answerable questions** — the assistant should answer from the documents and cite sources
+- **Unanswerable questions** — the assistant should say it doesn't have that information
 
 ---
 
-## 4. Mimari ve veri akışı
+## Project Files
 
-```
-[Kullanıcı/UI] -> [generation.answer_query] -> [retrieval.get_top_chunks] -> [SQLite]
-                          |                                                      
-                          v                                                      
-                  [foundry_client.chat]  <- (Foundry Local on-device LLM)        
-```
-
-1. Soru embed edilir, SQLite'taki vektörlerle cosine similarity ile karşılaştırılır
-   -> en iyi k parça (**retrieve**).
-2. Parçalar system prompt'a bağlam olarak eklenir (**augment**).
-3. Foundry chat modeli cevabı üretir; bağlamda yoksa "bilmiyorum" der (**generate**).
+| File | Purpose |
+|------|---------|
+| `foundry_client.py` | Single wrapper around the Foundry Local SDK |
+| `db.py` | SQLite schema (`documents` table) and helpers |
+| `ingest.py` | Reads, chunks, embeds, and stores `data/` documents |
+| `retrieval.py` | Embeds a query, returns top-K matching chunks |
+| `prompts.py` | System prompt + context message builder |
+| `generation.py` | End-to-end `answer_query()` pipeline |
+| `main.py` | CLI Q&A loop |
+| `ui_streamlit.py` | Streamlit web UI with sidebar and debug panel |
+| `check_setup.py` | Environment, catalog, alias, data, and DB checker |
+| `eval/questions.yaml` | 23 test questions (answerable + unanswerable) |
+| `eval/run_eval.py` | Evaluation runner with timing and summary |
+| `docs/one_month_plan.md` | Full 6-week teaching schedule |
+| `data/*.md` | Knowledge base documents (6 files) |
 
 ---
 
-## 5. Dosya sahipliği (kim ne yazar)
+## Knowledge Base Documents
 
-| Dosya | Sahip | İş |
-|-------|-------|----|
-| `foundry_client.py` | **Sina** | Foundry init + `get_embedding()` + `chat()` (tek SDK noktası) |
-| `db.py` | **Sina** | SQLite şema + I/O |
-| `ingest.py` | **Sina** | böl -> embed -> SQLite |
-| `retrieval.py` | **Sina** | `get_top_chunks()` (cosine similarity) |
-| `prompts.py` | **Şeyma** | system prompt + bağlam şablonu |
-| `generation.py` | **Şeyma** | `answer_query()` |
-| `ui_streamlit.py` | **Şeyma** | Streamlit arayüzü |
-| `main.py` | Ortak | CLI giriş |
-| `data/`, `eval/`, `README` | Ortak | dökümanlar, test, dok |
+| File | Topic |
+|------|-------|
+| `rag_nedir.md` | RAG overview, hallucination, three-step pipeline |
+| `foundry_local.md` | Installation, model management, hardware support |
+| `embeddings.md` | Embeddings, cosine similarity, top-K retrieval |
+| `sqlite.md` | SQLite overview, schema, SQL operations, limitations |
+| `prompt_engineering.md` | System/user prompts, RAG prompt design, pitfalls |
+| `rag_pipeline.md` | Ingestion and query phases explained step by step |
 
-**Arayüz sözleşmesi (değişmez):**
+---
+
+## Interface Contract
+
 ```python
+# foundry_client.py
 foundry_client.get_embedding(text: str) -> list[float]
 foundry_client.chat(messages: list[dict]) -> str
-retrieval.get_top_chunks(query: str, k: int = 3) -> list[dict]   # {text, source, score}
-generation.answer_query(question: str) -> dict                   # {answer, sources, used_chunks}
+foundry_client.shutdown() -> None
+
+# retrieval.py
+retrieval.get_top_chunks(query: str, k: int = 3) -> list[dict]
+# Returns: [{"text": str, "source": str, "score": float}, ...]
+
+# generation.py
+generation.answer_query(question: str) -> dict
+# Returns: {"answer": str, "sources": list[str], "used_chunks": list[dict]}
 ```
-> Şeyma, Sina'nın parçası hazır olmadan `get_top_chunks`'ı mock'layıp UI'ı geliştirebilir.
 
 ---
 
-## 6. Git akışı
+## Key Configuration
 
-- `main` her zaman çalışır. Direkt push yok.
-- Branch: `feat/retrieval`, `feat/ui`, `feat/generation` ...
-- Küçük + sık commit, PR aç, diğer kişi bakar, Sina merge eder.
+All tunable constants are at the top of their respective files:
+
+| Constant | File | Default | Effect |
+|----------|------|---------|--------|
+| `CHAT_MODEL_ALIAS` | `foundry_client.py` | `qwen2.5-0.5b` | LLM for answer generation |
+| `EMBEDDING_MODEL_ALIAS` | `foundry_client.py` | `qwen3-embedding-0.6b` | Embedding model |
+| `TEMPERATURE` | `foundry_client.py` | `0.2` | Answer randomness |
+| `MAX_TOKENS` | `foundry_client.py` | `512` | Max answer length |
+| `TOP_K` | `generation.py` | `3` | Chunks retrieved per query |
+| `MIN_RELEVANCE_SCORE` | `generation.py` | `0.45` | Minimum cosine similarity |
+| `MAX_CHARS` | `ingest.py` | `800` | Target chunk size (characters) |
+| `OVERLAP` | `ingest.py` | `100` | Chunk overlap (characters) |
 
 ---
 
-## 7. Kabul kriterleri (Definition of Done)
+## Definition of Done
 
-- [ ] Cevap dökümanlardaysa -> doğru, kaynak gösteren cevap
-- [ ] Bilgi yoksa -> "Bu konuda elimdeki dökümanlarda bilgi yok" (uydurmaz)
-- [ ] Boş/çok genel sorgu çökmeden işlenir
-- [ ] Tek komutla kurulup çalışır (`pip install -r requirements.txt`)
-- [ ] **Hem HP hem Mac'te** çalışır
-- [ ] `eval/run_eval.py` geçer; README + demo hazır
+- [ ] `python check_setup.py` passes with no errors
+- [ ] `python ingest.py` creates chunks in `rag.db`
+- [ ] CLI or Streamlit accepts questions and returns grounded answers with sources
+- [ ] Unanswerable questions get a fallback response (no hallucination)
+- [ ] `python eval/run_eval.py` runs and results are recorded
+- [ ] `README.md` updated with any team-specific notes
+- [ ] Final demo rehearsed on the target machine
+
+---
+
+## License
+
+MIT — This project is a teaching sample for learning and experimentation.

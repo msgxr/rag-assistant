@@ -1,5 +1,5 @@
 """
-generation.py  —  answer_query(question)  (Sahip: ŞEYMA)
+generation.py  —  answer_query(question)
 Bağlamı retrieval'dan çeker, promptu kurar, Foundry chat ile cevabı üretir.
 """
 from __future__ import annotations
@@ -9,6 +9,41 @@ import prompts
 from retrieval import get_top_chunks
 
 TOP_K = 3
+MIN_RELEVANCE_SCORE = 0.45
+FALLBACK_ANSWER = "Bu konuda elimdeki dökümanlarda bilgi yok."
+BAD_ANSWER_MARKERS = [
+    "bilgi yok",
+    "bağlamda cevap",
+    "baglamda cevap",
+    "aynen şunu yaz",
+    "aynen sunu yaz",
+    "context does not",
+    "not in the context",
+]
+
+
+def _top_score(chunks: list[dict]) -> float:
+    if not chunks:
+        return 0.0
+    return float(chunks[0].get("score", 0.0))
+
+
+def _looks_like_bad_answer(answer: str) -> bool:
+    text = answer.lower()
+    return any(marker in text for marker in BAD_ANSWER_MARKERS)
+
+
+def _context_answer(chunks: list[dict]) -> str:
+    """
+    Small local chat models can occasionally echo the instructions instead of
+    answering. When retrieval is strong, fall back to the best retrieved chunk.
+    """
+    if not chunks:
+        return FALLBACK_ANSWER
+
+    best = chunks[0]
+    text = " ".join(str(best["text"]).split())
+    return f"{text} [kaynak: {best['source']}]"
 
 
 def answer_query(question: str) -> dict:
@@ -21,12 +56,16 @@ def answer_query(question: str) -> dict:
         return {"answer": "Lütfen bir soru yazın.", "sources": [], "used_chunks": []}
 
     chunks = get_top_chunks(question, k=TOP_K)
+    if _top_score(chunks) < MIN_RELEVANCE_SCORE:
+        return {"answer": FALLBACK_ANSWER, "sources": [], "used_chunks": chunks}
 
     messages = [
         {"role": "system", "content": prompts.SYSTEM_PROMPT},
         {"role": "user", "content": prompts.build_user_message(question, chunks)},
     ]
     answer = fc.chat(messages)
+    if _looks_like_bad_answer(answer):
+        answer = _context_answer(chunks)
 
     sources: list[str] = []
     for c in chunks:
