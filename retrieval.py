@@ -21,7 +21,11 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 def get_top_chunks(query: str, k: int = 3) -> list[dict]:
     """En alakalı k parça. Her dict: {text, source, score}."""
-    query_emb = fc.get_embedding(query)
+    try:
+        query_emb = fc.get_embedding(query)
+    except Exception as exc:
+        print(f"[!] Sorgu embedding hatası: {exc}")
+        return []
 
     conn = db.get_connection()
     rows = db.fetch_all_chunks(conn)

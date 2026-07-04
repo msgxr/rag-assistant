@@ -67,7 +67,7 @@ python check_setup.py --models
 If `check_setup.py` reports that a model alias is missing, edit `foundry_client.py`:
 
 ```python
-CHAT_MODEL_ALIAS      = "qwen2.5-0.5b"       # or: phi-3.5-mini, phi-4-mini
+CHAT_MODEL_ALIAS      = "phi-3.5-mini"        # or: qwen2.5-0.5b, phi-4-mini
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
 ```
 
@@ -163,10 +163,10 @@ All tunable constants are at the top of their respective files:
 
 | Constant | File | Default | Effect |
 |----------|------|---------|--------|
-| `CHAT_MODEL_ALIAS` | `foundry_client.py` | `qwen2.5-0.5b` | LLM for answer generation |
+| `CHAT_MODEL_ALIAS` | `foundry_client.py` | `phi-3.5-mini` | LLM for answer generation |
 | `EMBEDDING_MODEL_ALIAS` | `foundry_client.py` | `qwen3-embedding-0.6b` | Embedding model |
 | `TEMPERATURE` | `foundry_client.py` | `0.2` | Answer randomness |
-| `MAX_TOKENS` | `foundry_client.py` | `512` | Max answer length |
+| `MAX_TOKENS` | `foundry_client.py` | `1024` | Max answer length |
 | `TOP_K` | `generation.py` | `3` | Chunks retrieved per query |
 | `MIN_RELEVANCE_SCORE` | `generation.py` | `0.45` | Minimum cosine similarity |
 | `MAX_CHARS` | `ingest.py` | `800` | Target chunk size (characters) |

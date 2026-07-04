@@ -18,12 +18,12 @@ import threading
 from foundry_local_sdk import Configuration, FoundryLocalManager
 
 # --- Model alias'ları (foundry model list ile doğrula) ---------------------
-CHAT_MODEL_ALIAS = "qwen2.5-0.5b"            # küçük + hızlı. Daha iyi kalite: "phi-3.5-mini"
+CHAT_MODEL_ALIAS = "phi-3.5-mini"             # daha iyi kalite. Hızlı alternatif: "qwen2.5-0.5b"
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"   # makinende embedding modelinin alias'ını doğrula
 
 # --- Üretim ayarları --------------------------------------------------------
 TEMPERATURE = 0.2
-MAX_TOKENS = 512
+MAX_TOKENS  = 1024   # phi-3.5-mini daha uzun cevap üretebilir (qwen2.5-0.5b için 512 yeterliydi)
 
 # --- Tembel (lazy) tekil başlatma; modeller programda 1 kez yüklenir --------
 _lock = threading.Lock()
@@ -34,7 +34,7 @@ _embed_model = None
 _embed_client = None
 
 
-def _safe_download(model) -> None:
+def _safe_download(model, model_name: str = "") -> None:
     """Model cache'te yoksa indir; varsa sessizce geç. Sürüm farklarına dayanıklı."""
     dl = getattr(model, "download", None)
     if not callable(dl):
@@ -42,13 +42,12 @@ def _safe_download(model) -> None:
     try:
         dl()
     except TypeError:
-        # bazı sürümler progress callback bekler
         try:
             dl(lambda *a, **k: None)
-        except Exception:
-            pass
-    except Exception:
-        pass  # zaten indirilmişse sorun değil
+        except Exception as exc:
+            print(f"[!] {model_name} indirilemedi (cache'te varsa sorun değil): {exc}")
+    except Exception as exc:
+        print(f"[!] {model_name} indirilemedi (cache'te varsa sorun değil): {exc}")
 
 
 def _ensure_ready() -> None:
@@ -65,19 +64,29 @@ def _ensure_ready() -> None:
 
         # Chat modeli
         _chat_model = catalog.get_model(CHAT_MODEL_ALIAS)
-        _safe_download(_chat_model)
-        _chat_model.load()
+        _safe_download(_chat_model, CHAT_MODEL_ALIAS)
+        try:
+            _chat_model.load()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Chat modeli '{CHAT_MODEL_ALIAS}' yüklenemedi: {exc}"
+            ) from exc
         _chat_client = _chat_model.get_chat_client()
         try:
             _chat_client.settings.temperature = TEMPERATURE
             _chat_client.settings.max_tokens = MAX_TOKENS
-        except Exception:
-            pass  # settings arayüzü sürüme göre değişebilir; kritik değil
+        except Exception as exc:
+            print(f"[!] Chat model ayarları uygulanamadı: {exc}")
 
         # Embedding modeli
         _embed_model = catalog.get_model(EMBEDDING_MODEL_ALIAS)
-        _safe_download(_embed_model)
-        _embed_model.load()
+        _safe_download(_embed_model, EMBEDDING_MODEL_ALIAS)
+        try:
+            _embed_model.load()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Embedding modeli '{EMBEDDING_MODEL_ALIAS}' yüklenemedi: {exc}"
+            ) from exc
         _embed_client = _embed_model.get_embedding_client()
 
         _ready = True

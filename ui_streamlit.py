@@ -69,13 +69,20 @@ with col_btn:
     ask_clicked = st.button("Sor →", use_container_width=True, type="primary")
 
 # ── Cevap üretimi ─────────────────────────────────────────────────────────────
-if ask_clicked and question.strip():
-    if chunk_count == 0:
-        st.error("Veritabanı boş. `python ingest.py` çalıştır.")
-    else:
-        with st.spinner("Düşünüyor… (ilk soruda modeller yükleniyor olabilir)"):
-            result = answer_query(question)
-        st.session_state.history.insert(0, (question, result))
+    if ask_clicked and question.strip():
+        if chunk_count == 0:
+            st.error("Veritabanı boş. `python ingest.py` çalıştır.")
+        else:
+            with st.spinner("Düşünüyor… (ilk soruda modeller yükleniyor olabilir)"):
+                try:
+                    result = answer_query(question)
+                except Exception as exc:
+                    result = {
+                        "answer": f"Hata oluştu: {exc}",
+                        "sources": [],
+                        "used_chunks": [],
+                    }
+            st.session_state.history.insert(0, (question, result))
 
 # ── Sohbet geçmişi ────────────────────────────────────────────────────────────
 for q, result in st.session_state.history:
@@ -83,14 +90,14 @@ for q, result in st.session_state.history:
         st.markdown(f"**🧑 Soru:** {q}")
 
         # Cevap
-        answer = result["answer"]
+        answer = result.get("answer", "Cevap alınamadı.")
         if "bilgi yok" in answer.lower() or "bulamadım" in answer.lower():
             st.info(answer, icon="ℹ️")
         else:
             st.markdown(answer)
 
         # Kaynaklar
-        if result["sources"]:
+        if result.get("sources"):
             src_list = " · ".join(f"`{s}`" for s in result["sources"])
             st.caption(f"📄 Kaynaklar: {src_list}")
 

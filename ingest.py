@@ -53,17 +53,24 @@ def ingest() -> None:
 
     conn = db.get_connection()
     db.init_db(conn)
-    db.clear_documents(conn)   # her çalıştırmada temiz kurulum
+    conn.execute("BEGIN")  # tek transaction — crash'te veri tutarlılığı bozulmasın
+    db.clear_documents(conn)
 
     total_chunks = sum(len(chunk_text(text)) for _, text in documents)
     print(f"[→] {len(documents)} döküman, tahmini {total_chunks} parça")
     print("[→] Embedding modeli ilk kullanımda indirilir (birkaç dakika sürebilir)...\n")
 
     done = 0
+    failed = 0
     for source, text in documents:
         chunks = chunk_text(text)
         for i, chunk in enumerate(chunks, 1):
-            embedding = fc.get_embedding(chunk)
+            try:
+                embedding = fc.get_embedding(chunk)
+            except Exception as exc:
+                print(f"\n[!] Embedding hatası ({source}, chunk {i}): {exc}")
+                failed += 1
+                continue
             db.insert_chunk(conn, source, chunk, embedding)
             done += 1
             # Basit ilerleme çubuğu
@@ -71,13 +78,15 @@ def ingest() -> None:
             bar = "█" * pct + "░" * (40 - pct)
             sys.stdout.write(f"\r  [{bar}] {done}/{total_chunks}  {source[:30]}")
             sys.stdout.flush()
-        conn.commit()   # her döküman sonrası kaydet
         print(f"\r  [+] {source:<40} {len(chunks)} parça")
 
+    conn.commit()  # tüm ingestion başarılıysa bir kerede kaydet
     final_count = db.count_documents(conn)
     conn.close()
 
     print(f"\n[OK] Ingestion tamamlandı.")
+    if failed:
+        print(f"[!] {failed} parça atlandı (embedding hatası).")
     print(f"[OK] {len(documents)} döküman → {final_count} parça → rag.db")
 
 

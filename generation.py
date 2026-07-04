@@ -55,15 +55,27 @@ def answer_query(question: str) -> dict:
     if not question:
         return {"answer": "Lütfen bir soru yazın.", "sources": [], "used_chunks": []}
 
-    chunks = get_top_chunks(question, k=TOP_K)
+    try:
+        chunks = get_top_chunks(question, k=TOP_K)
+    except Exception as exc:
+        return {"answer": f"Sorgu işlenirken hata: {exc}", "sources": [], "used_chunks": []}
+
     if _top_score(chunks) < MIN_RELEVANCE_SCORE:
         return {"answer": FALLBACK_ANSWER, "sources": [], "used_chunks": chunks}
 
-    messages = [
-        {"role": "system", "content": prompts.SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.build_user_message(question, chunks)},
-    ]
-    answer = fc.chat(messages)
+    try:
+        messages = [
+            {"role": "system", "content": prompts.SYSTEM_PROMPT},
+            {"role": "user", "content": prompts.build_user_message(question, chunks)},
+        ]
+        answer = fc.chat(messages)
+    except Exception as exc:
+        return {
+            "answer": f"Cevap üretilirken hata oluştu: {exc}",
+            "sources": [],
+            "used_chunks": chunks,
+        }
+
     if _looks_like_bad_answer(answer):
         answer = _context_answer(chunks)
 

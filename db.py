@@ -32,7 +32,6 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 def clear_documents(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM documents")
-    conn.commit()
 
 
 def insert_chunk(conn: sqlite3.Connection, source: str, content: str,
@@ -59,11 +58,16 @@ def fetch_all_chunks(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         "SELECT source, content, embedding FROM documents"
     ).fetchall()
-    return [
-        {
+    result: list[dict] = []
+    for r in rows:
+        try:
+            emb = json.loads(r["embedding"])
+        except (json.JSONDecodeError, TypeError) as exc:
+            print(f"[!] Bozuk embedding verisi ({r['source']}): {exc}")
+            continue
+        result.append({
             "source": r["source"],
             "content": r["content"],
-            "embedding": json.loads(r["embedding"]),
-        }
-        for r in rows
-    ]
+            "embedding": emb,
+        })
+    return result
