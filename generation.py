@@ -10,15 +10,27 @@ from retrieval import get_top_chunks
 
 TOP_K = 3
 MIN_RELEVANCE_SCORE = 0.45
+STRONG_SCORE = 0.60   # bu skorun üstünde retrieval'a güven: model pes etse bile pasajı göster
 FALLBACK_ANSWER = "Bu konuda elimdeki dökümanlarda bilgi yok."
-BAD_ANSWER_MARKERS = [
-    "bilgi yok",
-    "bağlamda cevap",
-    "baglamda cevap",
+
+# Modelin talimat metnini tekrarladığını gösteren ifadeler; bu durumda cevap
+# güvenilmezdir, en iyi chunk doğrudan cevap olarak verilir.
+ECHO_MARKERS = [
     "aynen şunu yaz",
     "aynen sunu yaz",
+    "reply with exactly",
+]
+
+# Modelin "bağlamda cevap yok" dediğini gösteren ifadeler; bu meşru bir
+# cevaptır, tek biçimli fallback cümlesine çevrilir (chunk ile EZİLMEZ).
+REFUSAL_MARKERS = [
+    "bilgi yok",
+    "bilmiyorum",
+    "bağlamda cevap",
+    "baglamda cevap",
     "context does not",
     "not in the context",
+    "don't have that information",
 ]
 
 
@@ -28,9 +40,9 @@ def _top_score(chunks: list[dict]) -> float:
     return float(chunks[0].get("score", 0.0))
 
 
-def _looks_like_bad_answer(answer: str) -> bool:
+def _matches(answer: str, markers: list[str]) -> bool:
     text = answer.lower()
-    return any(marker in text for marker in BAD_ANSWER_MARKERS)
+    return any(marker in text for marker in markers)
 
 
 def _context_answer(chunks: list[dict]) -> str:
@@ -76,8 +88,18 @@ def answer_query(question: str) -> dict:
             "used_chunks": chunks,
         }
 
-    if _looks_like_bad_answer(answer):
+    # Önce echo kontrolü: talimat tekrarı içinde fallback cümlesi de geçebilir
+    if _matches(answer, ECHO_MARKERS):
         answer = _context_answer(chunks)
+    elif _matches(answer, REFUSAL_MARKERS) and len(answer.strip()) <= 120:
+        # Kısa cevap + refusal ifadesi = model "bilmiyorum" diyor. (Uzun cevaplar
+        # "bilgi yok" ifadesini alıntılayan açıklamalar olabilir, onlara dokunma.)
+        if _top_score(chunks) >= STRONG_SCORE:
+            # Retrieval çok güçlüyken modelin pes etmesi model hatasıdır:
+            # cevap uydurmadan, en alakalı pasajı kaynağıyla göster.
+            answer = _context_answer(chunks)
+        else:
+            return {"answer": FALLBACK_ANSWER, "sources": [], "used_chunks": chunks}
 
     sources: list[str] = []
     for c in chunks:

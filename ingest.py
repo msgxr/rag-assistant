@@ -8,12 +8,17 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# Windows terminali bazen CP1254 kullanır; ok/blok karakterleri için UTF-8'e geç
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import db
 import foundry_client as fc
 
 DATA_DIR = Path(__file__).parent / "data"
 MAX_CHARS = 800     # bir parçanın hedef üst karakter sınırı
 OVERLAP   = 100     # uzun paragraf bölünürken örtüşme (bağlam kopmasın)
+MIN_CHARS = 150     # bundan kısa parçalar (başlık, kod satırı) komşusuyla birleşir
 
 
 def load_documents(data_dir: Path = DATA_DIR) -> list[tuple[str, str]]:
@@ -24,24 +29,35 @@ def load_documents(data_dir: Path = DATA_DIR) -> list[tuple[str, str]]:
     return docs
 
 
-def chunk_text(text: str, max_chars: int = MAX_CHARS,
-               overlap: int = OVERLAP) -> list[str]:
+def chunk_text(text: str, max_chars: int = MAX_CHARS, overlap: int = OVERLAP,
+               min_chars: int = MIN_CHARS) -> list[str]:
     """Önce paragraflara böl; çok uzun paragrafları örtüşmeli pencerelerle parçala."""
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    chunks: list[str] = []
+    pieces: list[str] = []
     for para in paragraphs:
         if len(para) <= max_chars:
-            chunks.append(para)
+            pieces.append(para)
         else:
             start = 0
             while start < len(para):
                 end = start + max_chars
                 piece = para[start:end].strip()
                 if piece:
-                    chunks.append(piece)
+                    pieces.append(piece)
                 if end >= len(para):
                     break
                 start = end - overlap
+
+    # Tek başına anlamsız kalan kısa parçalar ("## Başlık", kod satırı) retrieval'ı
+    # yanıltır: kısa metnin embedding'i çok odaklı olduğu için üst sıraya çıkar ama
+    # bilgi taşımaz. Bu yüzden kısa parçaları bir önceki parçayla birleştiriyoruz.
+    chunks: list[str] = []
+    for piece in pieces:
+        if chunks and (len(chunks[-1]) < min_chars or len(piece) < min_chars) \
+                and len(chunks[-1]) + len(piece) + 2 <= max_chars + min_chars:
+            chunks[-1] += "\n\n" + piece
+        else:
+            chunks.append(piece)
     return chunks
 
 

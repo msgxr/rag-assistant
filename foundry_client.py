@@ -18,12 +18,12 @@ import threading
 from foundry_local_sdk import Configuration, FoundryLocalManager
 
 # --- Model alias'ları (foundry model list ile doğrula) ---------------------
-CHAT_MODEL_ALIAS = "phi-3.5-mini"             # daha iyi kalite. Hızlı alternatif: "qwen2.5-0.5b"
+CHAT_MODEL_ALIAS = "qwen2.5-1.5b"             # hız/kalite dengesi. Daha hızlı: "qwen2.5-0.5b", daha iyi: "phi-3.5-mini"
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"   # makinende embedding modelinin alias'ını doğrula
 
 # --- Üretim ayarları --------------------------------------------------------
 TEMPERATURE = 0.2
-MAX_TOKENS  = 1024   # phi-3.5-mini daha uzun cevap üretebilir (qwen2.5-0.5b için 512 yeterliydi)
+MAX_TOKENS  = 512    # qwen2.5-0.5b için yeterli (phi-3.5-mini kullanırsan 1024 yap)
 
 # --- Tembel (lazy) tekil başlatma; modeller programda 1 kez yüklenir --------
 _lock = threading.Lock()
@@ -117,6 +117,11 @@ def _extract_embedding(resp) -> list[float]:
 
 
 # ===================== Dışarıya açık API (sözleşme) =========================
+
+def warm_up() -> None:
+    """Modelleri program başında yükler; ilk soruda bekleme yaşanmaz."""
+    _ensure_ready()
+
 
 def get_embedding(text: str) -> list[float]:
     """Tek metni embedding vektörüne çevirir. -> list[float]"""

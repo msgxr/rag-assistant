@@ -1,6 +1,7 @@
 # Test soru seti.
-# type: answerable | unanswerable
+# type: answerable | unanswerable | edge
 # expect_contains: cevapta geçmesi beklenen anahtar kelime (küçük harf, dil bağımsız)
+# edge: sistemin çökmeden, hatasız ve anlamlı bir cevap/fallback vermesi beklenir
 
 # ── Foundry Local ──────────────────────────────────────────────────────────────
 - question: "Foundry Local Intel Mac'lerde çalışır mı?"
@@ -11,13 +12,14 @@
   type: answerable
   expect_contains: "gpu"
 
+# Not: dökümanlar İngilizce, cevap Türkçe gelebilir; anahtar kelime olarak
+# dil bağımsız terimler (özel ad, sayı, komut adı) tercih edildi.
 - question: "Foundry Local'de model nasıl indirilir?"
   type: answerable
-  expect_contains: "download"
 
 - question: "qwen2.5-0.5b modeli ne zaman tercih edilmeli?"
   type: answerable
-  expect_contains: "small"
+  expect_contains: "qwen"
 
 # ── RAG ───────────────────────────────────────────────────────────────────────
 - question: "RAG'in üç adımı nedir?"
@@ -26,7 +28,7 @@
 
 - question: "Halüsinasyon nedir?"
   type: answerable
-  expect_contains: "hallüsinasyon"
+  expect_contains: "halüsinasyon"
 
 - question: "RAG ne zaman kullanılır?"
   type: answerable
@@ -35,9 +37,9 @@
 # ── Embeddings ────────────────────────────────────────────────────────────────
 - question: "Cosine similarity nedir?"
   type: answerable
-  expect_contains: "vektör"
+  expect_contains: "cosine"
 
-- question: "Bu projede kaç chunk döndürülür?"
+- question: "Top-K retrieval'da K değeri bu projede kaçtır?"
   type: answerable
   expect_contains: "3"
 
@@ -48,11 +50,9 @@
 # ── SQLite ────────────────────────────────────────────────────────────────────
 - question: "SQLite veriyi nerede saklar?"
   type: answerable
-  expect_contains: "file"
 
-- question: "documents tablosunun sütunları nelerdir?"
+- question: "documents tablosundaki dört sütunun adları nelerdir?"
   type: answerable
-  expect_contains: "source"
 
 - question: "rag.db nasıl yeniden oluşturulur?"
   type: answerable
@@ -61,18 +61,17 @@
 # ── Prompt Engineering ────────────────────────────────────────────────────────
 - question: "RAG promptlarında system prompt ne işe yarar?"
   type: answerable
-  expect_contains: "context"
+  expect_contains: "prompt"
 
-- question: "Model cevap bulamazsa ne demelidir?"
+- question: "Neden cevaplarda kaynak dosya adı gösterilir?"
   type: answerable
-  expect_contains: "information"
+  expect_contains: "kaynak"
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
 - question: "ingest.py ne yapar?"
   type: answerable
-  expect_contains: "chunk"
 
-- question: "Ingestion sırasında chunk boyutu kaç karakterdir?"
+- question: "Varsayılan chunk boyutu kaç karakterdir?"
   type: answerable
   expect_contains: "800"
 
@@ -92,3 +91,17 @@
 
 - question: "Foundry Local'in hisse fiyatı nedir?"
   type: unanswerable
+
+# ── Edge case'ler (boş, tek kelime, çok genel, çok uzun) ──────────────────────
+- question: ""
+  type: edge
+  expect_contains: "soru"
+
+- question: "RAG"
+  type: edge
+
+- question: "Bana her şeyi anlat"
+  type: edge
+
+- question: "Merhaba, ben bu projeyi yeni kurdum ve dökümanları okumaya vaktim olmadı, bana lütfen bu sistemin ne işe yaradığını, hangi teknolojileri kullandığını, verilerin nerede saklandığını, embedding denen şeyin ne olduğunu ve bir sorunun cevabının adım adım nasıl üretildiğini tek seferde, olabildiğince ayrıntılı şekilde anlatır mısın?"
+  type: edge

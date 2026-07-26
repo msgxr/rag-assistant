@@ -54,11 +54,18 @@ required after initial model download.
    pip install -r requirements.txt
    ```
 2. Run the setup checker: `python check_setup.py`
-3. Read `data/rag_nedir.md` and `data/foundry_local.md`
-4. Role-play RAG manually: one student finds the relevant paragraph,
+3. Run the "Hello Model" test — loads the chat model and prints one completion:
+
+   ```bash
+   python examples/hello_model.py
+   ```
+
+4. Read `data/rag_nedir.md` and `data/foundry_local.md`
+5. Role-play RAG manually: one student finds the relevant paragraph,
    another formulates an answer using only that paragraph
 
-**Milestone:** Every team can activate the virtual environment and pass the setup checker.
+**Milestone:** Every team can activate the virtual environment, pass the setup
+checker, and run a first local model inference via `examples/hello_model.py`.
 
 ---
 
@@ -77,10 +84,17 @@ required after initial model download.
 
 **Hands-on work:**
 1. Read `data/embeddings.md`, `data/sqlite.md`, `data/prompt_engineering.md`
-2. Inspect `db.py`, `retrieval.py`, and `prompts.py`
-3. Add a new `.md` file to `data/` on a topic of your choice
-4. Run `python ingest.py` to build `rag.db`
-5. Test retrieval: `python retrieval.py "your question here"`
+2. Run the standalone exercises:
+
+   ```bash
+   python examples/embedding_demo.py     # embeddings + cosine similarity in memory
+   python examples/sql_sandbox.py        # SQLite basics with the project schema
+   ```
+
+3. Inspect `db.py`, `retrieval.py`, and `prompts.py`
+4. Add a new `.md` file to `data/` on a topic of your choice
+5. Run `python ingest.py` to build `rag.db`
+6. Test retrieval: `python retrieval.py "your question here"`
 
 **Milestone:** Teams have a populated SQLite database and can retrieve relevant chunks for a query.
 
@@ -178,7 +192,7 @@ a grounded answer from the local model.
 
 ---
 
-### Week 6 (Optional): Documentation and Demo Day
+### Week 6: Documentation and Demo Day
 
 **Learning objectives:**
 - Explain the project architecture clearly to a non-technical audience
@@ -188,7 +202,9 @@ a grounded answer from the local model.
 **Hands-on work:**
 1. Update `README.md` with any team-specific setup notes
 2. Clean up debug output and add comments to key functions
-3. Prepare a 5-minute demo script:
+3. Prepare a 5-minute demo script — use
+   [`docs/presentation_outline.md`](presentation_outline.md) as the template
+   (Problem Statement, Key Features & Components, Live Demo, Lessons Learned):
    - Show the `data/` folder and explain what the documents cover
    - Ask a question the assistant can answer — show sources
    - Ask a question it should reject — show the fallback message
@@ -230,10 +246,10 @@ python eval/run_eval.py --fail-only
 
 ## Definition of Done
 
-- [ ] `python check_setup.py` passes with no errors
-- [ ] `python ingest.py` builds `rag.db` with chunks from `data/`
-- [ ] `python main.py` accepts questions and returns grounded answers with sources
-- [ ] If an answer is not in the documents, the assistant says so (no hallucination)
-- [ ] `python eval/run_eval.py` has been run and results are recorded
-- [ ] README is updated with any team-specific notes
+- [x] `python check_setup.py` passes with no errors
+- [x] `python ingest.py` builds `rag.db` with chunks from `data/`
+- [x] `python main.py` accepts questions and returns grounded answers with sources
+- [x] If an answer is not in the documents, the assistant says so (no hallucination)
+- [x] `python eval/run_eval.py` has been run and results are recorded in `eval/results.md`
+- [x] README is updated with any team-specific notes
 - [ ] Final demo rehearsed and working on the presentation machine

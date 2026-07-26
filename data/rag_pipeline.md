@@ -4,6 +4,21 @@
 
 A RAG pipeline has two distinct phases: ingestion and query. These two phases run at different times and serve different purposes.
 
+## Özet (Türkçe)
+
+ingest.py scripti data/ klasöründeki .txt ve .md dosyalarını okur, metinleri
+parçalara (chunk) böler, her parça için bir embedding vektörü üretir ve
+sonuçları rag.db veritabanındaki documents tablosuna kaydeder.
+
+Varsayılan chunk boyutu 800 karakterdir ve ardışık parçalar arasında 100
+karakterlik örtüşme (overlap) vardır. Örtüşme, parça sınırındaki cümlelerin
+kaybolmasını önler.
+
+Sorgu anında kullanıcının sorusu aynı embedding modeliyle vektöre çevrilir,
+cosine similarity ile en alakalı 3 parça bulunur ve bu parçalar bağlam olarak
+yerel chat modeline verilir. En iyi parçanın skoru 0.45'in altındaysa asistan
+cevap uydurmak yerine bilgi olmadığını söyler.
+
 ## Ingestion Phase
 
 Ingestion happens before the assistant is used. It reads documents, splits them into chunks, converts each chunk to an embedding, and stores everything in the database. In this project ingestion is triggered by running:
@@ -38,4 +53,4 @@ Language models have a limited context window. You cannot feed an entire documen
 
 ## Chunking Strategy in This Project
 
-The ingest.py script first splits text on blank lines to get natural paragraphs. If a paragraph is shorter than 800 characters it is kept as one chunk. If a paragraph is longer it is split with a sliding window of 800 characters and 100 characters of overlap. This approach preserves sentence context while keeping chunk sizes manageable.
+The ingest.py script first splits text on blank lines to get natural paragraphs. If a paragraph is shorter than 800 characters it is kept as one chunk. If a paragraph is longer it is split with a sliding window of 800 characters and 100 characters of overlap. Very short paragraphs such as headings or single code lines are merged with the neighboring paragraph, because a chunk that contains only a heading carries no information and can mislead the similarity search. This approach preserves sentence context while keeping chunk sizes manageable.

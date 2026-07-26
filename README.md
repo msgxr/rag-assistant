@@ -62,12 +62,15 @@ python check_setup.py
 
 # 4. (Optional) List all available model aliases
 python check_setup.py --models
+
+# 5. "Hello Model" smoke test — loads the chat model and prints one completion
+python examples/hello_model.py
 ```
 
 If `check_setup.py` reports that a model alias is missing, edit `foundry_client.py`:
 
 ```python
-CHAT_MODEL_ALIAS      = "phi-3.5-mini"        # or: qwen2.5-0.5b, phi-4-mini
+CHAT_MODEL_ALIAS      = "qwen2.5-1.5b"        # or: qwen2.5-0.5b, phi-3.5-mini
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
 ```
 
@@ -94,7 +97,7 @@ Ingestion clears and rebuilds the `documents` table each time.
 ## Evaluation
 
 ```bash
-python eval/run_eval.py              # run all 23 test questions
+python eval/run_eval.py              # run all 26 test questions
 python eval/run_eval.py --verbose    # show full answers
 python eval/run_eval.py --fail-only  # show only failures
 ```
@@ -102,6 +105,9 @@ python eval/run_eval.py --fail-only  # show only failures
 The evaluation set (`eval/questions.yaml`) checks:
 - **Answerable questions** — the assistant should answer from the documents and cite sources
 - **Unanswerable questions** — the assistant should say it doesn't have that information
+- **Edge cases** — empty input, single-word, very general, and very long questions must be handled gracefully (no crash, no error answer)
+
+Every run also writes a persistent report to `eval/results.md` (per-question PASS/FAIL, timing, sources) so test results are documented for the final report.
 
 ---
 
@@ -118,10 +124,15 @@ The evaluation set (`eval/questions.yaml`) checks:
 | `main.py` | CLI Q&A loop |
 | `ui_streamlit.py` | Streamlit web UI with sidebar and debug panel |
 | `check_setup.py` | Environment, catalog, alias, data, and DB checker |
-| `eval/questions.yaml` | 23 test questions (answerable + unanswerable) |
-| `eval/run_eval.py` | Evaluation runner with timing and summary |
+| `eval/questions.yaml` | 26 test questions (18 answerable, 4 unanswerable, 4 edge) |
+| `eval/run_eval.py` | Evaluation runner with timing, summary, and `eval/results.md` report |
+| `examples/hello_model.py` | Week 1 exercise — "Hello Model" runtime smoke test |
+| `examples/embedding_demo.py` | Week 2 exercise — embeddings + cosine similarity in memory |
+| `examples/sql_sandbox.py` | Week 2 exercise — SQLite basics with the project schema |
 | `docs/one_month_plan.md` | Full 6-week teaching schedule |
-| `data/*.md` | Knowledge base documents (6 files) |
+| `docs/week_by_week_schedule.md` | Compact week-by-week goals and tasks |
+| `docs/presentation_outline.md` | Demo-day presentation outline |
+| `data/*.md` | Knowledge base documents (7 files) |
 
 ---
 
@@ -129,6 +140,7 @@ The evaluation set (`eval/questions.yaml`) checks:
 
 | File | Topic |
 |------|-------|
+| `architecture.md` | This project's five-layer local architecture (client, application, retrieval, data, AI) |
 | `rag_nedir.md` | RAG overview, hallucination, three-step pipeline |
 | `foundry_local.md` | Installation, model management, hardware support |
 | `embeddings.md` | Embeddings, cosine similarity, top-K retrieval |
@@ -163,25 +175,70 @@ All tunable constants are at the top of their respective files:
 
 | Constant | File | Default | Effect |
 |----------|------|---------|--------|
-| `CHAT_MODEL_ALIAS` | `foundry_client.py` | `phi-3.5-mini` | LLM for answer generation |
+| `CHAT_MODEL_ALIAS` | `foundry_client.py` | `qwen2.5-1.5b` | LLM for answer generation |
 | `EMBEDDING_MODEL_ALIAS` | `foundry_client.py` | `qwen3-embedding-0.6b` | Embedding model |
 | `TEMPERATURE` | `foundry_client.py` | `0.2` | Answer randomness |
-| `MAX_TOKENS` | `foundry_client.py` | `1024` | Max answer length |
+| `MAX_TOKENS` | `foundry_client.py` | `512` | Max answer length |
 | `TOP_K` | `generation.py` | `3` | Chunks retrieved per query |
 | `MIN_RELEVANCE_SCORE` | `generation.py` | `0.45` | Minimum cosine similarity |
+| `STRONG_SCORE` | `generation.py` | `0.60` | Above this, show best passage if the model gives up |
 | `MAX_CHARS` | `ingest.py` | `800` | Target chunk size (characters) |
 | `OVERLAP` | `ingest.py` | `100` | Chunk overlap (characters) |
+| `MIN_CHARS` | `ingest.py` | `150` | Shorter pieces (headings, code lines) merge with neighbors |
+
+---
+
+## Design Decisions & Limitations
+
+### Design decisions
+
+- **Brute-force cosine similarity instead of a vector database.** For a 5–10 document
+  knowledge base, comparing the query vector against every stored vector in Python is
+  fast and needs zero extra dependencies. A dedicated vector DB (or a SQLite vector
+  extension) only becomes necessary at much larger scale.
+- **SQLite via the built-in `sqlite3` module.** Single file, serverless,
+  cross-platform — ideal for a single-user local app. Embeddings are stored as
+  JSON-serialized text for simplicity and easy debugging.
+- **Paragraph-based chunking** (`MAX_CHARS=800`, `OVERLAP=100`). Paragraphs keep
+  semantic units intact; the overlap prevents context loss when a long paragraph is
+  split mid-thought.
+- **`TOP_K=3` chunks per query with a `MIN_RELEVANCE_SCORE=0.45` gate.** Off-topic
+  questions fall below the threshold and get an honest "I don't have that
+  information" answer instead of a fabricated one. If the model itself declines,
+  that refusal is respected and normalized to the same fallback sentence — unless
+  retrieval is very strong (`STRONG_SCORE=0.60`), in which case the most relevant
+  passage is shown with its source instead of losing a findable answer.
+- **Small models for speed** (`qwen2.5-1.5b` chat, `qwen3-embedding-0.6b`
+  embeddings) with `TEMPERATURE=0.2` for factual, consistent answers. The plan
+  prioritizes fast feedback over answer depth; on this project's test machine
+  `qwen2.5-0.5b` was faster but too weak in Turkish, and `phi-3.5-mini` was far
+  too slow on CPU (~2 min/answer), so the 1.5B model is the measured sweet spot.
+  Both models are loaded once at startup (warm-up), so the first question
+  answers as fast as the rest.
+
+### Limitations
+
+- Answer quality is bounded by a ~3–4B parameter on-device model; long or subtle
+  reasoning questions may get shallow answers.
+- No incremental ingestion: `ingest.py` clears and rebuilds the `documents` table on
+  every run (acceptable at this scale, wasteful for large corpora).
+- Brute-force retrieval scales linearly with chunk count; beyond a few thousand
+  chunks a vector index would be needed.
+- SQLite here is single-user; concurrent writers are not supported.
+- Foundry Local does not support Intel Macs (Windows / Apple Silicon only).
+- Bilingual (Turkish/English) prompting can occasionally produce mixed-language
+  answers with very small models.
 
 ---
 
 ## Definition of Done
 
-- [ ] `python check_setup.py` passes with no errors
-- [ ] `python ingest.py` creates chunks in `rag.db`
-- [ ] CLI or Streamlit accepts questions and returns grounded answers with sources
-- [ ] Unanswerable questions get a fallback response (no hallucination)
-- [ ] `python eval/run_eval.py` runs and results are recorded
-- [ ] `README.md` updated with any team-specific notes
+- [x] `python check_setup.py` passes with no errors
+- [x] `python ingest.py` creates chunks in `rag.db`
+- [x] CLI or Streamlit accepts questions and returns grounded answers with sources
+- [x] Unanswerable questions get a fallback response (no hallucination)
+- [x] `python eval/run_eval.py` runs and results are recorded in `eval/results.md`
+- [x] `README.md` updated with any team-specific notes
 - [ ] Final demo rehearsed on the target machine
 
 ---

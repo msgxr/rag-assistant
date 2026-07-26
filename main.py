@@ -54,7 +54,15 @@ def main() -> None:
 
     # İnteraktif döngü
     _banner(chunk_count)
-    print("  (İlk soruda modeller yükleniyor olabilir, lütfen bekleyin.)\n")
+
+    # Modelleri baştan yükle; ilk soru gecikmesiz cevaplansın
+    print("  Modeller yükleniyor, lütfen bekleyin...")
+    try:
+        fc.warm_up()
+    except Exception as exc:
+        print(f"[!] Modeller yüklenemedi: {exc}")
+        sys.exit(1)
+    print("  Hazır.\n")
 
     try:
         while True:

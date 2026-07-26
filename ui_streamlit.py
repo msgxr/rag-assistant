@@ -6,7 +6,15 @@ ui_streamlit.py  —  Streamlit arayüzü
 import streamlit as st
 
 import db
+import foundry_client as fc
 from generation import answer_query
+
+
+@st.cache_resource
+def _warm_up() -> bool:
+    """Modelleri sayfa açılırken bir kez yükler; ilk soru gecikmesiz cevaplanır."""
+    fc.warm_up()
+    return True
 
 # ── Sayfa ayarları ──────────────────────────────────────────────────────────
 st.set_page_config(
@@ -34,6 +42,14 @@ try:
 except Exception as e:
     st.error(f"DB bağlantı hatası: {e}")
     chunk_count = 0
+
+# ── Model warm-up (sayfa açılışında bir kez) ─────────────────────────────────
+if chunk_count > 0:
+    try:
+        with st.spinner("Modeller yükleniyor…"):
+            _warm_up()
+    except Exception as e:
+        st.error(f"Modeller yüklenemedi: {e}")
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -69,20 +85,20 @@ with col_btn:
     ask_clicked = st.button("Sor →", use_container_width=True, type="primary")
 
 # ── Cevap üretimi ─────────────────────────────────────────────────────────────
-    if ask_clicked and question.strip():
-        if chunk_count == 0:
-            st.error("Veritabanı boş. `python ingest.py` çalıştır.")
-        else:
-            with st.spinner("Düşünüyor… (ilk soruda modeller yükleniyor olabilir)"):
-                try:
-                    result = answer_query(question)
-                except Exception as exc:
-                    result = {
-                        "answer": f"Hata oluştu: {exc}",
-                        "sources": [],
-                        "used_chunks": [],
-                    }
-            st.session_state.history.insert(0, (question, result))
+if ask_clicked and question.strip():
+    if chunk_count == 0:
+        st.error("Veritabanı boş. `python ingest.py` çalıştır.")
+    else:
+        with st.spinner("Düşünüyor…"):
+            try:
+                result = answer_query(question)
+            except Exception as exc:
+                result = {
+                    "answer": f"Hata oluştu: {exc}",
+                    "sources": [],
+                    "used_chunks": [],
+                }
+        st.session_state.history.insert(0, (question, result))
 
 # ── Sohbet geçmişi ────────────────────────────────────────────────────────────
 for q, result in st.session_state.history:
