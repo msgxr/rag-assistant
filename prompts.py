@@ -12,8 +12,8 @@ Rules:
 2. Answer in the same language as the question (Turkish question -> Turkish answer).
 3. Be concise: one to three sentences are enough.
 4. End your answer with the source file name, for example: [kaynak: dosya.md]
-5. Only if the context has nothing to do with the question, reply:
-   "Bu konuda elimdeki dökümanlarda bilgi yok." Do not guess."""
+5. If the CONTEXT does not contain the information needed to answer the
+   QUESTION, reply: "Bu konuda elimdeki dökümanlarda bilgi yok." Do not guess."""
 
 
 def build_user_message(question: str, chunks: list[dict]) -> str:

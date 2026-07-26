@@ -109,6 +109,20 @@ The evaluation set (`eval/questions.yaml`) checks:
 
 Every run also writes a persistent report to `eval/results.md` (per-question PASS/FAIL, timing, sources) so test results are documented for the final report.
 
+**Known weak spots / improvement list** (from the recorded runs):
+
+- The 1.5B chat model sometimes paraphrases instead of using the literal expected
+  token (e.g. describes hardware acceleration without the word "GPU", or explains
+  the threshold without quoting "0.45"), so keyword checks can fail on acceptable
+  answers. Next step: accept multiple keywords per question or grade answers with
+  a second model pass.
+- Rarely the model declines an answerable question (run-to-run variance even at
+  `TEMPERATURE=0.2`). The strong-retrieval passage fallback (`STRONG_SCORE`)
+  covers most of these; a retry-on-refusal would cover the rest.
+- Merged (larger) chunks improved answer grounding but increased per-question
+  latency on a CPU-only laptop. Next step: trim context to top-2 chunks for short
+  questions, or run on NPU/GPU hardware.
+
 ---
 
 ## Project Files
@@ -178,7 +192,7 @@ All tunable constants are at the top of their respective files:
 | `CHAT_MODEL_ALIAS` | `foundry_client.py` | `qwen2.5-1.5b` | LLM for answer generation |
 | `EMBEDDING_MODEL_ALIAS` | `foundry_client.py` | `qwen3-embedding-0.6b` | Embedding model |
 | `TEMPERATURE` | `foundry_client.py` | `0.2` | Answer randomness |
-| `MAX_TOKENS` | `foundry_client.py` | `512` | Max answer length |
+| `MAX_TOKENS` | `foundry_client.py` | `256` | Max answer length |
 | `TOP_K` | `generation.py` | `3` | Chunks retrieved per query |
 | `MIN_RELEVANCE_SCORE` | `generation.py` | `0.45` | Minimum cosine similarity |
 | `STRONG_SCORE` | `generation.py` | `0.60` | Above this, show best passage if the model gives up |

@@ -23,7 +23,7 @@ EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"   # makinende embedding modelinin
 
 # --- Üretim ayarları --------------------------------------------------------
 TEMPERATURE = 0.2
-MAX_TOKENS  = 512    # qwen2.5-0.5b için yeterli (phi-3.5-mini kullanırsan 1024 yap)
+MAX_TOKENS  = 256    # 1-3 cümlelik cevap için yeterli; kısa tutmak hem hız hem odak sağlar
 
 # --- Tembel (lazy) tekil başlatma; modeller programda 1 kez yüklenir --------
 _lock = threading.Lock()
